@@ -62,7 +62,11 @@ func main() {
 	response := "HTTP/1.1 404 Not Found\r\n\r\n"
 	if len(parts) >= 2 {
 		path := parts[1]
-		if strings.HasPrefix(path, "/echo/") {
+
+		// handle root path first (stage IA4)
+		if path == "/" {
+			response = "HTTP/1.1 200 OK\r\n\r\n"
+		} else if strings.HasPrefix(path, "/echo/") {
 			echoRaw := path[len("/echo/"):]
 			echoStr, _ := url.PathUnescape(echoRaw)
 			length := len([]byte(echoStr))
