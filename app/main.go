@@ -72,7 +72,7 @@ func main() {
 			length := len([]byte(echoStr))
 
 			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
-		} else if strings.HasPrefix(path, "/user-agent/") {
+		} else if path == "/user-agent" || strings.HasPrefix(path, "/user-agent/") {
 
 			headerLines := strings.Split(req, "\r\n")[1:] // skip first line
 			headers := make(map[string]string)
