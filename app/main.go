@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -61,8 +62,12 @@ func main() {
 	response := "HTTP/1.1 404 Not Found\r\n\r\n"
 	if len(parts) >= 2 {
 		path := parts[1]
-		if path == "/" {
-			response = "HTTP/1.1 200 OK\r\n\r\n"
+		if strings.HasPrefix(path, "/echo/") {
+			echoRaw := path[len("/echo/"):]
+			echoStr, _ := url.PathUnescape(echoRaw)
+			length := len([]byte(echoStr))
+
+			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
 		}
 	}
 
