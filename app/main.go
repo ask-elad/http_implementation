@@ -72,6 +72,24 @@ func main() {
 			length := len([]byte(echoStr))
 
 			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
+		} else if strings.HasPrefix(path, "/user-agent/") {
+
+			headerLines := strings.Split(req, "\r\n")[1:] // skip first line
+			headers := make(map[string]string)
+			for _, line := range headerLines {
+				if line == "" {
+					break
+				}
+				parts := strings.SplitN(line, ":", 2)
+				if len(parts) == 2 {
+					headers[strings.ToLower(strings.TrimSpace(parts[0]))] = strings.TrimSpace(parts[1])
+				}
+			}
+			echoRaw := headers["user-agent"]
+			echoStr, _ := url.PathUnescape(echoRaw)
+			length := len([]byte(echoStr))
+
+			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
 		}
 	}
 
