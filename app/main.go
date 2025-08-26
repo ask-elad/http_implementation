@@ -93,7 +93,7 @@ func handleClient(conn net.Conn) {
 			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
 		} else if strings.HasPrefix(path, "/files/") {
 			fileName := path[len("/files/"):]
-			dirName := os.Args[1]
+			dirName := os.Args[2]
 			pathName := filepath.Join(dirName, fileName)
 
 			_, err := os.Stat(pathName)
