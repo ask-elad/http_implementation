@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -90,7 +91,29 @@ func handleClient(conn net.Conn) {
 			echoStr, _ := url.PathUnescape(echoRaw)
 			length := len([]byte(echoStr))
 			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
+		} else if strings.HasPrefix(path, "/files/") {
+			fileName := path[len("/files/"):]
+			dirName := os.Args[1]
+			pathName := filepath.Join(dirName, fileName)
+
+			_, err := os.Stat(pathName)
+			if err != nil {
+				response = "HTTP/1.1 404 Not Found\r\n\r\n"
+			} else {
+				fileBytes, err := os.ReadFile(pathName)
+				if err != nil {
+					response = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+				} else {
+					length := len(fileBytes)
+					response = fmt.Sprintf(
+						"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s",
+						length,
+						string(fileBytes),
+					)
+				}
+			}
 		}
+
 	}
 
 	_, werr := conn.Write([]byte(response))
@@ -98,4 +121,3 @@ func handleClient(conn net.Conn) {
 		fmt.Println("Error writing response:", werr)
 	}
 }
-
