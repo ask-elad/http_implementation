@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/url"
 	"os"
@@ -56,68 +57,116 @@ func handleClient(conn net.Conn) {
 
 	parts := strings.Fields(firstLine)
 
-	// debug prints (optional)
-	fmt.Println(n)
-	fmt.Println(parts)
+	if parts[0] == "GET" {
+		// debug prints (optional)
+		// fmt.Println(n)
+		// fmt.Println(parts)
 
-	response := "HTTP/1.1 404 Not Found\r\n\r\n"
+		response := "HTTP/1.1 404 Not Found\r\n\r\n"
 
-	if len(parts) >= 2 {
-		path := parts[1]
+		if len(parts) >= 2 {
+			path := parts[1]
 
-		// root path
-		if path == "/" {
-			response = "HTTP/1.1 200 OK\r\n\r\n"
-		} else if strings.HasPrefix(path, "/echo/") {
-			echoRaw := path[len("/echo/"):]
-			echoStr, _ := url.PathUnescape(echoRaw)
-			length := len([]byte(echoStr))
-			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
-		} else if path == "/user-agent" || strings.HasPrefix(path, "/user-agent/") {
-			// parse headers
-			headerLines := strings.Split(req, "\r\n")[1:] // skip request line
-			headers := make(map[string]string)
-			for _, line := range headerLines {
-				if line == "" {
-					break
+			// root path
+			if path == "/" {
+				response = "HTTP/1.1 200 OK\r\n\r\n"
+			} else if strings.HasPrefix(path, "/echo/") {
+				echoRaw := path[len("/echo/"):]
+				echoStr, _ := url.PathUnescape(echoRaw)
+				length := len([]byte(echoStr))
+				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
+			} else if path == "/user-agent" || strings.HasPrefix(path, "/user-agent/") {
+				// parse headers
+				headerLines := strings.Split(req, "\r\n")[1:] // skip request line
+				headers := make(map[string]string)
+				for _, line := range headerLines {
+					if line == "" {
+						break
+					}
+					parts := strings.SplitN(line, ":", 2)
+					if len(parts) == 2 {
+						headers[strings.ToLower(strings.TrimSpace(parts[0]))] = strings.TrimSpace(parts[1])
+					}
 				}
-				parts := strings.SplitN(line, ":", 2)
-				if len(parts) == 2 {
-					headers[strings.ToLower(strings.TrimSpace(parts[0]))] = strings.TrimSpace(parts[1])
-				}
-			}
 
-			echoRaw := headers["user-agent"]
-			echoStr, _ := url.PathUnescape(echoRaw)
-			length := len([]byte(echoStr))
-			response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
-		} else if strings.HasPrefix(path, "/files/") {
-			fileName := path[len("/files/"):]
-			dirName := os.Args[2]
-			pathName := filepath.Join(dirName, fileName)
+				echoRaw := headers["user-agent"]
+				echoStr, _ := url.PathUnescape(echoRaw)
+				length := len([]byte(echoStr))
+				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
+			} else if strings.HasPrefix(path, "/files/") {
+				fileName := path[len("/files/"):]
+				dirName := os.Args[2]
+				pathName := filepath.Join(dirName, fileName)
 
-			_, err := os.Stat(pathName)
-			if err != nil {
-				response = "HTTP/1.1 404 Not Found\r\n\r\n"
-			} else {
-				fileBytes, err := os.ReadFile(pathName)
+				_, err := os.Stat(pathName)
 				if err != nil {
-					response = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+					response = "HTTP/1.1 404 Not Found\r\n\r\n"
 				} else {
-					length := len(fileBytes)
-					response = fmt.Sprintf(
-						"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s",
-						length,
-						string(fileBytes),
-					)
+					fileBytes, err := os.ReadFile(pathName)
+					if err != nil {
+						response = "HTTP/1.1 500 Internal Server Error\r\n\r\n"
+					} else {
+						length := len(fileBytes)
+						response = fmt.Sprintf(
+							"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s",
+							length,
+							string(fileBytes),
+						)
+					}
 				}
 			}
 		}
 
-	}
+		_, werr := conn.Write([]byte(response))
+		if werr != nil {
+			fmt.Println("Error writing response:", werr)
+		}
+	} else if parts[0] == "POST" {
+		response := "HTTP/1.1 201 Created\r\n\r\n"
 
-	_, werr := conn.Write([]byte(response))
-	if werr != nil {
-		fmt.Println("Error writing response:", werr)
+		if len(parts) >= 2 {
+			lines := strings.Split(req, "\r\n")
+			path := strings.Split(lines[0], " ")
+
+			foldPath := strings.Split(path[1], "/")
+
+			// use only filename (foldPath[2]) since foldPath[1] == "files"
+			filename := foldPath[2]
+
+			// get Content-Length
+			var contentLength int
+			for _, line := range lines {
+				if strings.HasPrefix(line, "Content-Length:") {
+					fmt.Sscanf(line, "Content-Length: %d", &contentLength)
+				}
+			}
+
+			// split headers and body
+			partsReq := strings.SplitN(req, "\r\n\r\n", 2)
+			body := ""
+			if len(partsReq) == 2 {
+				body = partsReq[1]
+			}
+
+			// trim body to Content-Length
+			if len(body) > contentLength {
+				body = body[:contentLength]
+			}
+
+			// get directory from flag (e.g. os.Args[2] if passed as --directory /tmp/)
+			baseDir := os.Args[2]
+			filePath := filepath.Join(baseDir, filename)
+
+			// create file and write body
+			err := os.WriteFile(filePath, []byte(body), 0o644)
+			if err != nil {
+				log.Fatalf("Error creating file: %v", err)
+			}
+		}
+
+		_, werr := conn.Write([]byte(response))
+		if werr != nil {
+			fmt.Println("Error writing response:", werr)
+		}
 	}
 }
