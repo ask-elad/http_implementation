@@ -57,11 +57,20 @@ func handleClient(conn net.Conn) {
 
 	parts := strings.Fields(firstLine)
 
-	if parts[0] == "GET" {
-		// debug prints (optional)
-		// fmt.Println(n)
-		// fmt.Println(parts)
+	// ✅ parse headers once
+	headerLines := strings.Split(req, "\r\n")[1:]
+	headers := make(map[string]string)
+	for _, line := range headerLines {
+		if line == "" {
+			break
+		}
+		kv := strings.SplitN(line, ":", 2)
+		if len(kv) == 2 {
+			headers[strings.ToLower(strings.TrimSpace(kv[0]))] = strings.TrimSpace(kv[1])
+		}
+	}
 
+	if parts[0] == "GET" {
 		response := "HTTP/1.1 404 Not Found\r\n\r\n"
 
 		if len(parts) >= 2 {
@@ -74,25 +83,28 @@ func handleClient(conn net.Conn) {
 				echoRaw := path[len("/echo/"):]
 				echoStr, _ := url.PathUnescape(echoRaw)
 				length := len([]byte(echoStr))
-				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
-			} else if path == "/user-agent" || strings.HasPrefix(path, "/user-agent/") {
-				// parse headers
-				headerLines := strings.Split(req, "\r\n")[1:] // skip request line
-				headers := make(map[string]string)
-				for _, line := range headerLines {
-					if line == "" {
-						break
-					}
-					parts := strings.SplitN(line, ":", 2)
-					if len(parts) == 2 {
-						headers[strings.ToLower(strings.TrimSpace(parts[0]))] = strings.TrimSpace(parts[1])
-					}
+
+				// default headers
+				headersOut := "Content-Type: text/plain\r\n"
+
+				// ✅ use parsed headers
+				if strings.Contains(strings.ToLower(headers["accept-encoding"]), "gzip") {
+					headersOut += "Content-Encoding: gzip\r\n"
 				}
 
+				response = fmt.Sprintf(
+					"HTTP/1.1 200 OK\r\n%sContent-Length: %d\r\n\r\n%s",
+					headersOut, length, echoStr,
+				)
+			} else if path == "/user-agent" || strings.HasPrefix(path, "/user-agent/") {
+				// ✅ reuse parsed headers
 				echoRaw := headers["user-agent"]
 				echoStr, _ := url.PathUnescape(echoRaw)
 				length := len([]byte(echoStr))
-				response = fmt.Sprintf("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s", length, echoStr)
+				response = fmt.Sprintf(
+					"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: %d\r\n\r\n%s",
+					length, echoStr,
+				)
 			} else if strings.HasPrefix(path, "/files/") {
 				fileName := path[len("/files/"):]
 				dirName := os.Args[2]
@@ -109,8 +121,7 @@ func handleClient(conn net.Conn) {
 						length := len(fileBytes)
 						response = fmt.Sprintf(
 							"HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\n\r\n%s",
-							length,
-							string(fileBytes),
+							length, string(fileBytes),
 						)
 					}
 				}
@@ -170,3 +181,4 @@ func handleClient(conn net.Conn) {
 		}
 	}
 }
+
