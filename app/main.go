@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	_"log"
+	_ "log"
 	"net"
 	"net/url"
 	"os"
@@ -211,7 +211,8 @@ func handleClient(conn net.Conn) {
 			conn.Write([]byte(response))
 
 			if strings.ToLower(headers["connection"]) == "close" {
-				return
+				response = strings.Replace(response, "\r\n\r\n",
+					"\r\nConnection: close\r\n\r\n", 1)
 			}
 		}
 	}
