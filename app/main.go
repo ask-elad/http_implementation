@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"fmt"
 	"log"
 	"net"
@@ -76,28 +78,46 @@ func handleClient(conn net.Conn) {
 		if len(parts) >= 2 {
 			path := parts[1]
 
-			// root path
 			if path == "/" {
 				response = "HTTP/1.1 200 OK\r\n\r\n"
 			} else if strings.HasPrefix(path, "/echo/") {
 				echoRaw := path[len("/echo/"):]
 				echoStr, _ := url.PathUnescape(echoRaw)
-				length := len([]byte(echoStr))
 
-				// default headers
-				headersOut := "Content-Type: text/plain\r\n"
+				accept := strings.ToLower(headers["accept-encoding"])
 
-				// ✅ use parsed headers
-				if strings.Contains(strings.ToLower(headers["accept-encoding"]), "gzip") {
-					headersOut += "Content-Encoding: gzip\r\n"
+				if strings.Contains(accept, "gzip") {
+					var buf bytes.Buffer
+					gz := gzip.NewWriter(&buf)
+					gz.Write([]byte(echoStr))
+					gz.Close()
+
+					compressed := buf.Bytes()
+
+					response := fmt.Sprintf(
+						"HTTP/1.1 200 OK\r\n"+
+							"Content-Encoding: gzip\r\n"+
+							"Content-Type: text/plain\r\n"+
+							"Content-Length: %d\r\n\r\n",
+						len(compressed),
+					)
+
+					conn.Write([]byte(response))
+					conn.Write(compressed) 
+					return
 				}
 
-				response = fmt.Sprintf(
-					"HTTP/1.1 200 OK\r\n%sContent-Length: %d\r\n\r\n%s",
-					headersOut, length, echoStr,
+				length := len(echoStr)
+				response := fmt.Sprintf(
+					"HTTP/1.1 200 OK\r\n"+
+						"Content-Type: text/plain\r\n"+
+						"Content-Length: %d\r\n\r\n%s",
+					length, echoStr,
 				)
+				conn.Write([]byte(response))
+				return
 			} else if path == "/user-agent" || strings.HasPrefix(path, "/user-agent/") {
-				// ✅ reuse parsed headers
+
 				echoRaw := headers["user-agent"]
 				echoStr, _ := url.PathUnescape(echoRaw)
 				length := len([]byte(echoStr))
@@ -181,4 +201,3 @@ func handleClient(conn net.Conn) {
 		}
 	}
 }
-
