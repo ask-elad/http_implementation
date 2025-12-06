@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
-	_ "log"
+	_"log"
 	"net"
 	"net/url"
 	"os"
@@ -104,6 +104,10 @@ func handleClient(conn net.Conn) {
 								"Content-Length: %d\r\n\r\n",
 							len(compressed),
 						)
+						if strings.ToLower(headers["connection"]) == "close" {
+							response = strings.Replace(response, "\r\n\r\n",
+								"\r\nConnection: close\r\n\r\n", 1)
+						}
 
 						conn.Write([]byte(response))
 						conn.Write(compressed)
@@ -121,6 +125,11 @@ func handleClient(conn net.Conn) {
 							"Content-Length: %d\r\n\r\n%s",
 						length, echoStr,
 					)
+
+					if strings.ToLower(headers["connection"]) == "close" {
+						response = strings.Replace(response, "\r\n\r\n",
+							"\r\nConnection: close\r\n\r\n", 1)
+					}
 
 					conn.Write([]byte(response))
 
@@ -163,6 +172,10 @@ func handleClient(conn net.Conn) {
 						}
 					}
 				}
+			}
+			if strings.ToLower(headers["connection"]) == "close" {
+				response = strings.Replace(response, "\r\n\r\n",
+					"\r\nConnection: close\r\n\r\n", 1)
 			}
 
 			_, werr := conn.Write([]byte(response))
@@ -207,12 +220,16 @@ func handleClient(conn net.Conn) {
 
 				os.WriteFile(filePath, []byte(body), 0644)
 			}
+			
+			if strings.ToLower(headers["connection"]) == "close" {
+				response = strings.Replace(response, "\r\n\r\n",
+					"\r\nConnection: close\r\n\r\n", 1)
+			}
 
 			conn.Write([]byte(response))
 
 			if strings.ToLower(headers["connection"]) == "close" {
-				response = strings.Replace(response, "\r\n\r\n",
-					"\r\nConnection: close\r\n\r\n", 1)
+				return
 			}
 		}
 	}
